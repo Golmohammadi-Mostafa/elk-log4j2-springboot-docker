@@ -1,0 +1,74 @@
+version: "3.3"
+services:
+
+  app:
+    build:
+      context: ./
+    ports:
+      - "8080:8080"
+    networks:
+      - internal
+    container_name: app-v2
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.15.2
+    volumes:
+      - elasticsearch:/usr/share/elasticsearch/data
+    environment:
+      discovery.type: single-node
+    ports:
+      - "9200:9200"
+    networks:
+      - internal
+    depends_on:
+      - app
+
+    container_name: elasticsearch-v2
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.15.2
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+    environment:
+      ELASTIC_HOSTS: "elasticsearch:9200"
+      MONITORING_ENABLED: "false"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    networks:
+      - internal
+    depends_on:
+      - elasticsearch
+    container_name: logstash-v2
+
+  filebeat:
+    build:
+      context: ./filebeat
+      args:
+        ELASTIC_STACK_VERSION: 7.15.2
+    ports:
+      - "5066:5066"
+    volumes:
+      - ./logs/all.log:/logs/all.log:ro
+    networks:
+      - internal
+    depends_on:
+      - logstash
+    container_name: filebeat-v2
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.15.2
+    environment:
+      MONITORING_KIBANA_COLLECTION_ENABLED: "false"
+    ports:
+      - "5601:5601"
+    networks:
+      - internal
+    depends_on:
+      - logstash
+    container_name: kibana-v2
+networks:
+  internal:
+
+volumes:
+  elasticsearch:
